@@ -55,10 +55,16 @@ WantedBy=default.target
     execSync(`loginctl enable-linger ${process.env.USER || ''}`, { stdio: 'pipe' })
   } catch {}
 
+  // Sinaliza pro main loop que o serviço já tá pronto pra subir, mas
+  // NÃO faz `systemctl start` aqui — senão dispara segunda instância
+  // do agente concorrendo com a foreground. O main loop sai após
+  // configurar e o user inicia o serviço manualmente (ou simplesmente
+  // fecha o terminal e reinicia o PC).
   return {
     ok: true,
     path,
-    message: 'Auto-start configurado via systemd. O agente vai subir no boot. Logs: journalctl --user -u comandinha-print -f',
+    needsManualStart: true,
+    message: 'Auto-start configurado via systemd (enabled). Vai subir no boot. Pra iniciar agora sem reiniciar o PC: feche este programa (Ctrl+C) e rode `systemctl --user start comandinha-print`.',
   }
 }
 
@@ -91,17 +97,14 @@ function installMacOS(execPath) {
   writeFileSync(path, content)
   chmodSync(path, 0o644)
 
-  try { execSync(`launchctl unload "${path}"`, { stdio: 'pipe' }) } catch {}
-  try {
-    execSync(`launchctl load "${path}"`, { stdio: 'pipe' })
-  } catch (e) {
-    return { ok: false, message: `launchctl load falhou: ${e.message}`, path }
-  }
-
+  // Não carrega o plist agora pra não disparar segunda instância
+  // concorrente. O user fecha o programa e o launchd sobe sozinho
+  // no próximo login (ou roda `launchctl load` manual).
   return {
     ok: true,
     path,
-    message: 'Auto-start configurado via launchd. O agente vai subir no login do macOS.',
+    needsManualStart: true,
+    message: 'Auto-start configurado via launchd. Sobe no próximo login. Pra iniciar agora sem reiniciar: feche este programa e rode `launchctl load ' + path + '`.',
   }
 }
 
@@ -119,7 +122,8 @@ function installWindows(execPath) {
   return {
     ok: true,
     path,
-    message: 'Auto-start configurado na pasta Startup do Windows. O agente vai subir no próximo login.',
+    needsManualStart: true,
+    message: 'Auto-start configurado na pasta Startup do Windows. Sobe no próximo login. Pra iniciar agora sem reiniciar: feche este programa e dê duplo-clique em ' + path,
   }
 }
 

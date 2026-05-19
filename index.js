@@ -73,6 +73,10 @@ async function offerAutoStart() {
   const result = installAutoStart(process.execPath)
   if (result.ok) {
     console.log(`✓ ${result.message}`)
+    console.log('')
+    console.log('  Por enquanto este programa continua rodando aqui no terminal —')
+    console.log('  enquanto não fechar, ele fica recebendo os pedidos.')
+    console.log('  Quando fechar, o serviço de auto-start assume.')
     log.info('autostart_installed', { path: result.path })
   } else {
     console.warn(`⚠ Não consegui configurar o auto-start: ${result.message}`)
