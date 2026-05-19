@@ -13,7 +13,9 @@ import { installAutoStart, isAutoStartInstalled } from './src/installer.js'
 const CONFIG_DIR  = join(homedir(), '.comandinha-print')
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json')
 const LOG_PATH    = join(CONFIG_DIR, 'agent.log')
-const POLL_MS     = 2000
+// 5s reduz a carga no backend pela metade vs polling de 2s — latência
+// aceitável pra cozinha (pedido sai em até ~5s do envio do garçom).
+const POLL_MS     = 5000
 
 const log = createLogger(LOG_PATH)
 const sleep = (ms) => new Promise(r => setTimeout(r, ms))
