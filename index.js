@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import readline from 'node:readline/promises'
+import { stdin, stdout } from 'node:process'
 import { loadConfig, saveConfig } from './src/config.js'
 import { createApi, AGENT_VERSION } from './src/api.js'
 import { send as printerSend } from './src/printer.js'
 import { promptPairCode } from './src/pair.js'
 import { createLogger } from './src/logger.js'
+import { installAutoStart, isAutoStartInstalled } from './src/installer.js'
 
 const CONFIG_DIR  = join(homedir(), '.comandinha-print')
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json')
@@ -27,6 +30,9 @@ async function pair(config) {
     console.log(`✓ Conectado como "${result.nome}"!`)
     console.log('')
     log.info('paired', { agent_id: result.agent_id })
+
+    await offerAutoStart()
+
     return config
   } catch (err) {
     const detail = err.response?.data?.message ?? err.message
@@ -37,8 +43,58 @@ async function pair(config) {
   }
 }
 
+async function offerAutoStart() {
+  if (isAutoStartInstalled()) {
+    console.log('ℹ Auto-start já está configurado neste PC. Vai subir sozinho no próximo boot.')
+    console.log('')
+    return
+  }
+
+  if (!stdin.isTTY) {
+    console.log('ℹ Pra ativar o auto-start automaticamente, rode uma vez interativamente.')
+    console.log('  (Ou rode `comandinha-print --install` quando quiser.)')
+    console.log('')
+    return
+  }
+
+  const rl = readline.createInterface({ input: stdin, output: stdout })
+  console.log('Quer que o Comandinha Print abra sozinho sempre que o PC ligar?')
+  console.log('(Recomendado — é o que mantém a impressão funcionando 24/7)')
+  const ans = (await rl.question('[S/n] ')).trim().toLowerCase()
+  rl.close()
+
+  if (ans === 'n' || ans === 'nao' || ans === 'não' || ans === 'no') {
+    console.log('Ok, fica só rodando enquanto você mantém a janela aberta.')
+    console.log('Pra ativar depois: `comandinha-print --install`')
+    console.log('')
+    return
+  }
+
+  const result = installAutoStart(process.execPath)
+  if (result.ok) {
+    console.log(`✓ ${result.message}`)
+    log.info('autostart_installed', { path: result.path })
+  } else {
+    console.warn(`⚠ Não consegui configurar o auto-start: ${result.message}`)
+    console.warn('  Você pode continuar abrindo o programa manualmente. Tudo o resto funciona normal.')
+    log.warn('autostart_failed', result)
+  }
+  console.log('')
+}
+
 async function main() {
   console.log(`Comandinha Print v${AGENT_VERSION}`)
+
+  // Flag --install reinstala o auto-start manualmente (útil pós-update do binário)
+  if (process.argv.includes('--install')) {
+    const result = installAutoStart(process.execPath)
+    if (result.ok) {
+      console.log(`✓ ${result.message}`)
+      process.exit(0)
+    }
+    console.error(`✗ ${result.message}`)
+    process.exit(1)
+  }
 
   let config = loadConfig(CONFIG_PATH)
   console.log(`API: ${config.api_url}`)
